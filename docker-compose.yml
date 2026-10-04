@@ -1,0 +1,185 @@
+# ============================================
+# Webhook Handler — Full Stack
+# ============================================
+# Usage:
+#   docker compose --env-file .env.docker up -d
+#   docker compose --env-file .env.docker up -d --build   # force rebuild
+#   docker compose logs -f api
+#   docker compose down
+#   docker compose down -v    # also deletes volumes
+# ============================================
+
+services:
+
+  # ============================================
+  # POSTGRES — source of truth
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: wh-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-webhook_db}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-webhook_db}"]
+      interval: 15s
+      timeout: 15s
+      retries: 20
+      start_period: 60s
+    networks:
+      - wh-network
+
+  # ============================================
+  # REDIS — cache + Celery broker + result backend
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: wh-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - wh-network
+
+  # ============================================
+  # API — FastAPI + uvicorn
+  # ============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: webhook-handler:latest
+    container_name: wh-api
+    restart: unless-stopped
+    command: >
+      sh -c "python create_tables.py &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-webhook_db}
+
+      # Redis — DB 0 for cache, DB 1 for broker, DB 2 for results
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+
+      # Application config
+      APP_NAME: webhook-handler
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      ENVIRONMENT: docker
+
+      # Secrets
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_test_placeholder}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+
+      # Prometheus multiprocess mode — shared directory
+      # so Celery worker metrics appear in the API's /metrics endpoint.
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+    volumes:
+      - prometheus_multiproc:/tmp/prometheus_multiproc
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wh-network
+
+  # ============================================
+  # WORKER — Celery worker (async processing)
+  # ============================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: webhook-handler:latest
+    container_name: wh-worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --pool=solo
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-webhook_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      APP_NAME: webhook-handler
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      ENVIRONMENT: docker
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_test_placeholder}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+      SIMULATED_TRANSIENT_FAILURE_RATE: 1.0
+    volumes:
+      - prometheus_multiproc:/tmp/prometheus_multiproc
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wh-network
+
+  # ============================================
+  # BEAT — Celery beat (periodic scheduler)
+  # ============================================
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: webhook-handler:latest
+    container_name: wh-beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-webhook_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      APP_NAME: webhook-handler
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      ENVIRONMENT: docker
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+    volumes:
+      - prometheus_multiproc:/tmp/prometheus_multiproc
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wh-network
+
+# ============================================
+# VOLUMES — persistent data outside containers
+# ============================================
+volumes:
+  postgres_data:
+  redis_data:
+  # Shared metrics directory for Prometheus multiprocess mode.
+  # api + worker + beat mount this so their metrics merge.
+  prometheus_multiproc:
+
+# ============================================
+# NETWORKS — internal DNS for service discovery
+# ============================================
+networks:
+  wh-network:
+    driver: bridge

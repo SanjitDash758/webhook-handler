@@ -1,0 +1,77 @@
+# ============================================
+# Docker build context exclusions
+# ============================================
+# Anything listed here is NOT sent to the Docker daemon
+# during `docker build`, and therefore NOT copied into
+# the image.
+# ============================================
+
+# -------- Version control --------
+.git
+.gitignore
+.gitattributes
+
+# -------- Python artifacts --------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# -------- Virtual environments --------
+myenv/
+venv/
+env/
+ENV/
+.venv/
+
+# -------- Environment files --------
+# NEVER bake secrets into an image.
+# The .env.example is the only env file that belongs in the image
+# (it's a template, not a secret).
+.env
+.env.*
+!.env.example
+
+# -------- Databases --------
+*.db
+*.sqlite3
+webhook.db
+
+# -------- Test artifacts --------
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# -------- IDE / editor --------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -------- OS --------
+.DS_Store
+Thumbs.db
+
+# -------- Documentation & tests --------
+# Not needed in the runtime image.
+docs/
+tests/
+
+# -------- Docker files --------
+# The Dockerfile and compose file don't need to be inside the image.
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# -------- Scripts & misc --------
+scripts/
+migrations/
+Makefile
+README.md
+LICENSE
