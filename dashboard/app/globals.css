@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0e16;
+  --surface: #121826;
+  --line: #232d42;
+  --ink: #e7ecf5;
+  --dim: #6e7d99;
+
+  --signal-cyan: #45d9e0;
+  --signal-amber: #f5a623;
+  --signal-green: #35d399;
+  --signal-red: #f2495c;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-feature-settings: "tnum" 1;
+}
+.font-mono { font-family: var(--font-mono), ui-monospace, monospace; }
+.font-sans { font-family: var(--font-sans), system-ui, sans-serif; }
+
+@keyframes trace { 0% { stroke-dashoffset: 24; } 100% { stroke-dashoffset: 0; } }
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 166, 35, 0); }
+}
