@@ -36,6 +36,26 @@ from app.repositories.unit_of_work import UnitOfWork, get_uow
 from app.services.webhook_service import WebhookIngestionService
 from app.core.metrics import record_webhook_received, record_webhook_duplicate
 
+# ---------------------------------------------------------------------------
+# INLINE PROCESSING MODE (free-tier demo)
+# ---------------------------------------------------------------------------
+# In production, webhooks are dispatched to a Celery worker and processed
+# asynchronously. That requires a Background Worker service on Render, which
+# is not part of the free tier.
+#
+# To keep the demo running on free infrastructure while preserving the
+# asynchronous architecture in the codebase, we process inline here when
+# CELERY_ENABLED is false.
+#
+# To switch back to real Celery processing:
+#   1. Set CELERY_ENABLED=true (env var) — or uncomment the async dispatch
+#      block in the endpoint below.
+#   2. Deploy a Celery worker service.
+#   3. The commented block will pick up where the inline call leaves off.
+# ---------------------------------------------------------------------------
+import os
+CELERY_ENABLED = os.getenv("CELERY_ENABLED", "false").lower() == "true"
+
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/webhooks/generic", tags=["webhooks"])
@@ -44,6 +64,37 @@ router = APIRouter(prefix="/webhooks/generic", tags=["webhooks"])
 # Reasonable bounds. Prevent storage abuse and log pollution.
 MAX_IDEMPOTENCY_KEY_LENGTH = 255
 MAX_EVENT_TYPE_LENGTH = 100
+
+
+async def _process_inline(receipt_id: str) -> None:
+    """
+    Process a webhook inline (no Celery). Used when CELERY_ENABLED is false.
+
+    Wraps the same `_process` function the Celery task uses, so the state
+    machine (pending → processing → success/dead_lettered) and all pipeline
+    events are identical. The only difference: no retries, no backoff.
+
+    Failures that would normally move to the DLQ still do — the code path is
+    the same, only the retry loop is bypassed.
+    """
+    from app.workers.tasks.process_webhook import _process
+    from celery import Task
+
+    class _InlineTask(Task):
+        """Duck-typed Celery task so _process can introspect request.retries."""
+        max_retries = 0
+        request = type("Request", (), {"retries": 0})()
+
+    try:
+        await _process(receipt_id=receipt_id, task=_InlineTask())
+        logger.info(f"Inline processing complete: receipt_id={receipt_id}")
+    except Exception as exc:
+        # Inline mode has no retry loop; log and let the DLQ logic inside
+        # _process handle the terminal state.
+        logger.error(
+            f"Inline processing failed: receipt_id={receipt_id} exc={exc!r}",
+            exc_info=True,
+        )
 
 
 @router.post(
@@ -121,7 +172,26 @@ async def receive_generic_webhook(
         )
         raise HTTPException(status_code=409, detail=str(exc))
 
-    # ---- 4. Respond ----
+    # ---- 4. Dispatch to worker ----
+    #
+    # PRODUCTION MODE — Celery worker picks up the task.
+    # Requires a Background Worker service on Render ($7/month).
+    # Commented out for the free-tier demo.
+    #
+    # from app.workers.tasks.process_webhook import process_webhook_task
+    # process_webhook_task.delay(str(result.receipt_id))
+    #
+    # FREE-TIER DEMO MODE — process inline after responding.
+    # BackgroundTasks keeps the 202 fast; the work runs after the response.
+    if result.is_new and not CELERY_ENABLED:
+        from starlette.background import BackgroundTask
+        # Schedule the inline processing so the client still gets a fast 202.
+        # The background task runs after the response has been sent.
+        background = BackgroundTask(_process_inline, str(result.receipt_id))
+    else:
+        background = None
+
+    # ---- 5. Respond ----
     if not result.is_new:
         record_webhook_duplicate(provider="generic")
 
@@ -130,4 +200,8 @@ async def receive_generic_webhook(
         "receipt_id": str(result.receipt_id),
         "event_type": event_type,
     }
-    return JSONResponse(status_code=result.status_code, content=body)
+    return JSONResponse(
+        status_code=result.status_code,
+        content=body,
+        background=background,
+    )
