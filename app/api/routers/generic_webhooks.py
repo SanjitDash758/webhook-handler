@@ -126,7 +126,7 @@ async def receive_generic_webhook(
         record_webhook_duplicate(provider="generic")
 
     body = result.response_payload or {
-        "status": "accepted",
+        "status": "accepted" if result.is_new else "duplicate",
         "receipt_id": str(result.receipt_id),
         "event_type": event_type,
     }
