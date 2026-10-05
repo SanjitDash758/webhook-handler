@@ -2,7 +2,12 @@
 
 A production-grade webhook processor that was built focusing on mainly handling duplicate events, logging proper records of failures, and maintaining trust with idempotency, signature verification, retries, and a dead-letter queue.
 
-**Status:** Runs locally via Docker Compose, fully tested end-to-end including real failure/retry/DLQ scenarios under concurrent load (see [docs/dlq_evidence.md](./docs/dlq_evidence.md)). Cloud deployment is architected and documented (see [docs/architecture.md](./docs/architecture.md)) but not currently live.
+**Status:** Backend deployed on Render (free tier) — see
+[API docs](https://webhook-backend-2tdx.onrender.com/docs) and
+[health check](https://webhook-backend-2tdx.onrender.com/health).
+Dashboard deployment in progress. Full stack runs locally via Docker
+Compose, tested end-to-end including real failure/retry/DLQ scenarios
+under concurrent load (see [docs/dlq_evidence.md](./docs/dlq_evidence.md)).
 
 ---
 

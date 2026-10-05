@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=[
             "http://localhost:3000",
-            "https://*.onrender.com",
+            "https://webhook-dashboard-5sk4.onrender.com/,
         ],
         allow_credentials=True,
         allow_methods=["*"],
