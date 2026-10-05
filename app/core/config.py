@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # ADMIN API KEY
     # ============================================
     ADMIN_API_KEY: str
-
+    WS_PUBLIC_TOKEN: str 
     # ============================================
     # IDEMPOTENCY TTLs (in seconds)
     # ============================================
@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     SWEEP_STUCK_THRESHOLD_SECONDS: int = 300 # 5 minutes
     MAX_SWEEP_ATTEMPTS: int = 3
 
-
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 # Singleton instance — imported everywhere
 settings = Settings()
