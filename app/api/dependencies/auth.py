@@ -41,14 +41,17 @@ async def require_admin_api_key(
         raise AuthenticationError("Invalid or missing API key")
 
 
-def require_dashboard_access(authorization: str = Header(...)) -> None:
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
+async def require_dashboard_access(
+    x_api_key: str = Header(..., alias="X-API-Key"),
+) -> None:
+    """
+    Verifies the X-API-Key header for dashboard endpoints.
+    Same secret as admin — one token, two usage contexts.
+    """
+    if not settings.ADMIN_API_KEY:
+        logger.error("ADMIN_API_KEY is not configured; rejecting dashboard request")
+        raise AuthenticationError("Dashboard authentication is not configured")
 
-    token = authorization.removeprefix("Bearer ").strip()
-
-    # Constant-time comparison — a plain `==` leaks timing information
-    # about how many leading characters matched, which is a real (if minor)
-    # side-channel for a secret this cheap to protect properly.
-    if not secrets.compare_digest(token, settings.ADMIN_API_TOKEN):
-        raise HTTPException(status_code=401, detail="Invalid dashboard token")
+    if not hmac.compare_digest(x_api_key, settings.ADMIN_API_KEY):
+        logger.warning("Dashboard API: invalid API key presented")
+        raise AuthenticationError("Invalid or missing API key")
