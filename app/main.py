@@ -16,6 +16,7 @@ from app.api.routers.admin import router as admin_router
 from app.api.routers.generic_webhooks import router as generic_router
 from app.api.routers.stripe_webhooks import router as stripe_router
 from app.api.routers.metrics import router as metrics_router
+from app.api.routers.pipeline_ws import router as pipeline_ws_router
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.logging import get_logger, setup_logging
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(generic_router)
     app.include_router(admin_router)
     app.include_router(metrics_router)
+    app.include_router(pipeline_ws_router)
 
     # ---- Health ----
     @app.get("/health", tags=["meta"], summary="Liveness + readiness probe")
