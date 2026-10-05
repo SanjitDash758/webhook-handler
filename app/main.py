@@ -83,12 +83,13 @@ def create_app() -> FastAPI:
     app.add_middleware(RateLimitMiddleware)
     
     # 2. CORS middleware wraps around everything so browser preflight checks pass
+    CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000"
+    ).split(",")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "https://webhook-dashboard-5sk4.onrender.com",
-        ],
+        allow_origins=CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
