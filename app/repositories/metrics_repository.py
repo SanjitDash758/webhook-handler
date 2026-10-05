@@ -12,8 +12,8 @@ from app.schemas.metrics import (
 async def get_total_counts(db: AsyncSession) -> tuple[int, int, int]:
     stmt = select(
         func.count().label("total_received"),
-        func.count().filter(WebhookReceipt.status == WebhookStatus.success).label("total_success"),
-        func.count().filter(WebhookReceipt.status == WebhookStatus.dead_lettered).label("total_dead_lettered"),
+        func.count().filter(WebhookReceipt.status == WebhookStatus.SUCCESS).label("total_success"),
+        func.count().filter(WebhookReceipt.status == WebhookStatus.DEAD_LETTERED).label("total_dead_lettered"),
     )
     row = (await db.execute(stmt)).one()
     return row.total_received, row.total_success, row.total_dead_lettered
@@ -24,8 +24,8 @@ async def get_provider_breakdown(db: AsyncSession) -> list[ProviderBreakdown]:
         select(
             WebhookReceipt.provider,
             func.count().label("received"),
-            func.count().filter(WebhookReceipt.status == WebhookStatus.success).label("success"),
-            func.count().filter(WebhookReceipt.status == WebhookStatus.dead_lettered).label("dead_lettered"),
+            func.count().filter(WebhookReceipt.status == WebhookStatus.SUCCESS).label("success"),
+            func.count().filter(WebhookReceipt.status == WebhookStatus.DEAD_LETTERED).label("dead_lettered"),
             func.count().filter(WebhookReceipt.verified.is_(False)).label("unverified_count"),
         )
         .group_by(WebhookReceipt.provider)
@@ -54,7 +54,7 @@ async def get_latency_stats(db: AsyncSession) -> LatencyStats:
         func.percentile_cont(0.99).within_group(duration_ms).label("p99"),
         func.count().label("sample_size"),
     ).where(
-        WebhookReceipt.status == WebhookStatus.success,
+        WebhookReceipt.status == WebhookStatus.SUCCESS,
         WebhookReceipt.processing_started_at.isnot(None),
         WebhookReceipt.completed_at.isnot(None),
     )
@@ -72,8 +72,8 @@ async def get_retry_sweep_stats(db: AsyncSession) -> RetrySweepStats:
     stmt = select(
         func.coalesce(func.sum(WebhookReceipt.celery_retry_count), 0).label("total_celery_retries"),
         func.coalesce(func.sum(WebhookReceipt.sweep_attempts), 0).label("total_sweep_reenqueues"),
-        func.count().filter(WebhookReceipt.status == WebhookStatus.pending).label("currently_pending"),
-        func.count().filter(WebhookReceipt.status == WebhookStatus.processing).label("currently_processing"),
+        func.count().filter(WebhookReceipt.status == WebhookStatus.PENDING).label("currently_pending"),
+        func.count().filter(WebhookReceipt.status == WebhookStatus.PROCESSING).label("currently_processing"),
     )
     row = (await db.execute(stmt)).one()
     return RetrySweepStats(
@@ -83,7 +83,8 @@ async def get_retry_sweep_stats(db: AsyncSession) -> RetrySweepStats:
         currently_processing=row.currently_processing,
     )
 
-# ==== Failure Mode ==== # 
+
+# ==== Failure Mode ==== #
 
 # async def get_dlq_stats(db: AsyncSession) -> DLQStats:
 #     stmt = select(
@@ -92,18 +93,19 @@ async def get_retry_sweep_stats(db: AsyncSession) -> RetrySweepStats:
 #         func.min(DeadLetterQueue.failed_at).filter(DeadLetterQueue.resolved.is_(False)).label("oldest_unresolved"),
 #     )
 #     row = (await db.execute(stmt)).one()
-
+#
 #     age_seconds = None
 #     if row.oldest_unresolved is not None:
 #         age_seconds = int((func.now() - row.oldest_unresolved).total_seconds()) \
 #             if hasattr(row.oldest_unresolved, "total_seconds") else None
 #         # computed properly in the service layer instead — see note below
-
+#
 #     return DLQStats(
 #         total_unresolved=row.total_unresolved,
 #         total_resolved=row.total_resolved,
 #         oldest_unresolved_age_seconds=None,  # placeholder, fixed in service layer
 #     )
+
 
 async def get_dlq_stats(db: AsyncSession) -> DLQStats:
     stmt = select(
