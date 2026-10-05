@@ -10,6 +10,36 @@ Full stack runs locally via Docker Compose, tested end-to-end including real fai
 
 ---
 
+## Quick Navigation
+
+If you have five minutes, read these four sections in order:
+
+- **[What This Does](#what-this-does)** — the feature list, one line each
+- **[Architecture](#architecture)** — how the pieces fit together
+- **[Production Verification](#production-verification)** — proof the system works live, with real curl output and logs
+- **[Two Environments, Two Classes of Bugs](#two-environments-two-classes-of-bugs)** — the honest answer to "how do you know it works?"
+
+**Full contents:**
+
+| Section                                                                        | What it covers                         |
+| ------------------------------------------------------------------------------ | -------------------------------------- |
+| [The Problem](#the-problem)                                                    | Why webhook handling is hard           |
+| [Who This Is For](#who-this-is-for)                                            | The businesses that need this          |
+| [What This Does](#what-this-does)                                              | Feature list                           |
+| [Architecture](#architecture)                                                  | Diagram + component table              |
+| [Quick Start](#quick-start)                                                    | Docker Compose and native setup        |
+| [Verify It Works](#verify-it-works)                                            | How to test locally                    |
+| [Test Evidence](#test-evidence)                                                | 15 end-to-end scenarios                |
+| [Bugs Found and Fixed (Local)](#bugs-found-and-fixed-local-testing)            | 3 bugs caught by local tests           |
+| [Production Deployment](#production-deployment--live-on-render)                | Live service URLs, free-tier mode      |
+| [Production Bugs Found and Fixed](#production-bugs-found-and-fixed)            | 7 bugs caught by deploying             |
+| [Production Verification](#production-verification)                            | Live curl tests and log evidence       |
+| [Two Environments, Two Classes of Bugs](#two-environments-two-classes-of-bugs) | Local vs. production failures compared |
+| [Design Decisions](#design-decisions)                                          | Trade-offs explained                   |
+| [Project Structure](#project-structure)                                        | Folder layout                          |
+
+---
+
 ## The Problem
 
 Every service that accepts webhooks eventually hits the same wall:
