@@ -5,9 +5,8 @@ A production-grade webhook processor that was built focusing on mainly handling 
 **Status:** Backend deployed on Render (free tier) — see
 [API docs](https://webhook-backend-2tdx.onrender.com/docs) and
 [health check](https://webhook-backend-2tdx.onrender.com/health).
-Dashboard deployment in progress. Full stack runs locally via Docker
-Compose, tested end-to-end including real failure/retry/DLQ scenarios
-under concurrent load (see [docs/dlq_evidence.md](./docs/dlq_evidence.md)).
+Dashboard live at [webhook-dashboard-5sk4.onrender.com](https://webhook-dashboard-5sk4.onrender.com).
+Full stack runs locally via Docker Compose, tested end-to-end including real failure/retry/DLQ scenarios under concurrent load (see [docs/dlq_evidence.md](./docs/dlq_evidence.md)).
 
 ---
 
@@ -188,9 +187,9 @@ Plus three real concurrency/correctness bugs found and fixed during development 
 
 ---
 
-## Bugs Found and Fixed
+## Bugs Found and Fixed (Local Testing)
 
-Three real bugs surfaced during development — all found through testing, not code review. Full postmortems: [docs/bugs.md](./docs/bugs.md).
+Three real bugs surfaced during local development — all found through testing, not code review. Full postmortems: [docs/bugs.md](./docs/bugs.md).
 
 ### Bug 1 — Idempotency fast-path bypass
 
@@ -209,6 +208,196 @@ The DLQ replay cap (max 3) was enforced with a read-then-check-then-write patter
 `process_webhook.py` and the reconciliation sweep each kept their own private asyncio event loop, while sharing one SQLAlchemy connection pool. An asyncpg connection opened on one module's loop would fail when reused on the other's — crashing the sweep on every single invocation.
 
 **Fix:** one shared event loop for the entire worker process instead of one private loop per module. Verified clean across ~3 hours and 25+ scheduled sweep ticks under real concurrent retry/DLQ activity, including through a system sleep/resume gap.
+
+---
+
+## Production Deployment — Live on Render
+
+Beyond the local test suite above, this project is deployed live and was stress-tested against real infrastructure. The deployment surfaced a second class of bugs — **integration bugs** — that local testing could not have caught. They are documented here in full because they are the honest story of the project.
+
+**Live services:**
+
+| Service   | URL                                              | Runtime               |
+| --------- | ------------------------------------------------ | --------------------- |
+| API       | https://webhook-backend-2tdx.onrender.com        | FastAPI (Python 3.11) |
+| API docs  | https://webhook-backend-2tdx.onrender.com/docs   | OpenAPI / Swagger     |
+| Health    | https://webhook-backend-2tdx.onrender.com/health | Liveness + readiness  |
+| Dashboard | https://webhook-dashboard-5sk4.onrender.com      | Next.js 16            |
+| Redis     | Render Valkey 8                                  | Idempotency + broker  |
+| Postgres  | Render PostgreSQL 18                             | Source of truth       |
+
+**Free-tier demo mode.** Render's Background Worker service is not free. To keep this demo running on free infrastructure without deleting the async architecture, the codebase supports two dispatch modes:
+
+- **Production mode** — webhooks dispatch to a Celery worker via `process_webhook_task.delay()`. Requires a Background Worker service.
+- **Free-tier demo mode** — webhooks process inline via FastAPI's `BackgroundTask`, calling the same `_process()` function the Celery task calls. Same state machine, same pipeline events, same DLQ logic. No retries/backoff (there is no queue to retry into), but everything else is identical.
+
+The mode is controlled by the `CELERY_ENABLED` env var. Both code paths are visible in `app/api/routers/generic_webhooks.py` — the Celery dispatch is kept as commented-out code so the intended production architecture is preserved in the source.
+
+---
+
+## Production Bugs Found and Fixed
+
+Seven integration bugs surfaced during the first production deploy. Unlike the three bugs above (which were caught by local tests), these only appeared against real infrastructure — Render, HTTPS, real env vars, real browser clients. They are the difference between "the code works" and "the system works."
+
+### Bug 4 — Env var name mismatch between services
+
+The dashboard service read `DASHBOARD_API_TOKEN` from its env; the backend service expected `ADMIN_API_KEY`. Different names, same intended secret. Every dashboard request to the backend returned 401.
+
+**Fix:** rename the dashboard's env var to match what the backend's code reads, and confirm both sides use the same value.
+
+### Bug 5 — `Settings` object missing attributes at runtime
+
+Twice during deployment, code read a `Settings` attribute that was never declared in the Pydantic `Settings` class:
+
+- `settings.DASHBOARD_API_TOKEN` — never declared. Backend crashed on every request.
+- `settings.WS_PUBLIC_TOKEN` — never declared. WebSocket auth raised `AttributeError` on every connection.
+
+Because the code read the attribute at request time, the app booted fine and only failed when traffic arrived.
+
+**Fix:** add each field to the `Settings` class in `app/core/config.py`. Both are now declared, so Pydantic validates their presence at startup.
+
+### Bug 6 — Wrong HTTP header name for auth
+
+The dashboard sent `Authorization: Bearer <token>`. The backend's `require_dashboard_access` dependency read `authorization` (lowercase, no alias). FastAPI's `Header(...)` parameter matching is case-sensitive on the alias, so the header was never found.
+
+**Fix:** add `alias="Authorization"` to the FastAPI `Header(...)` declaration, or read the header directly from `request.headers.get("authorization")` (case-insensitive).
+
+### Bug 7 — Enum case mismatch in metrics repository
+
+`metrics_repository.py` compared `WebhookStatus.success`, but the enum members are `PENDING`, `PROCESSING`, `SUCCESS`, `DEAD_LETTERED`. Python is case-sensitive. Every call to `/metrics/summary` raised `AttributeError: success`.
+
+**Fix:** replace all lowercase enum references with their uppercase equivalents throughout the repository layer.
+
+### Bug 8 — Duplicate responses returned the wrong status string
+
+On a duplicate webhook hit, the API correctly returned HTTP 200 and the original `receipt_id`, but the response body always said `"status": "accepted"` — indistinguishable from a fresh insert. The `is_new` flag was set correctly on `IngestionResult`, but the router ignored it when constructing the response body.
+
+**Fix:** in `generic_webhooks.py`, use `"status": "accepted" if result.is_new else "duplicate"`. The HTTP status code already distinguished the two cases; now the body does too.
+
+### Bug 9 — WebSocket router never registered
+
+`app/api/routers/pipeline_ws.py` defined the `/ws/pipeline` route, but `app/main.py` never imported or included it. Every WebSocket connection was rejected at the router level — the handler never ran. This is why the dashboard's "Live pipeline" panel stayed on "Connecting…" indefinitely.
+
+**Fix:** add `from app.api.routers.pipeline_ws import router as pipeline_ws_router` and `app.include_router(pipeline_ws_router)` to `app/main.py`.
+
+### Bug 10 — Startup routine blocked the port scanner
+
+The `lifespan` function ran `await init_redis()` and `await Base.metadata.create_all()` before yielding. On the free tier, both can be slow (~45s combined cold-start). Render's port scanner gives up after ~60s and kills the container, reporting "no open ports detected" — even though the app had actually finished booting.
+
+**Fix:** move database initialization out of the startup critical path. The app now binds the port first and initializes dependencies after, so the scanner sees the port immediately.
+
+---
+
+## Production Verification
+
+Once the seven bugs above were fixed, the entire pipeline was verified live. All requests below were sent against the production deployment, not localhost.
+
+### Happy path — Received → Queued → Processing → Success
+
+```bash
+curl.exe -X POST https://webhook-backend-2tdx.onrender.com/webhooks/generic \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: success-001" \
+  -H "X-Event-Type: payment.test" \
+  -d '{"user_id":"333","amount":100}'
+```
+
+**Response:** `202 Accepted`, `{"status":"accepted","receipt_id":"..."}`
+
+**Backend log:**
+
+```
+Ingested new webhook: key=success-001 receipt_id=...
+Processing receipt: ...
+Processed receipt: id=... result={"status":"success",...}
+Task success: receipt_id=...
+```
+
+**Dashboard:** TOTAL RECEIVED increments, SUCCESS increments, P50 latency populated.
+
+### Duplicate path — Redis fast-path hit
+
+Same request, sent again with the same `Idempotency-Key`:
+
+**Response:** `200 OK`, `{"status":"duplicate","receipt_id":"<same UUID>"}`
+
+**Backend log:**
+
+```
+Idempotency hit (Redis): provider=generic key=success-001 receipt_id=...
+```
+
+**Dashboard:** No change. The duplicate never re-entered the pipeline.
+
+### Transient failure path — retries, then DLQ
+
+```bash
+curl.exe -X POST https://webhook-backend-2tdx.onrender.com/webhooks/generic \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: transient-001" \
+  -H "X-Event-Type: payment.test" \
+  -d '{"user_id":"444","simulate_failure":"transient"}'
+```
+
+**Backend log:**
+
+```
+Retrying receipt_id=... in 60s (attempt 1/6)
+... (5 retries with exponential backoff) ...
+Retries exhausted for receipt_id=...; moving to DLQ
+Moved to DLQ: receipt_id=... category=transient
+```
+
+**Dashboard:** DEAD-LETTERED increments. DLQ HEALTH shows one unresolved entry.
+
+### Permanent failure path — direct DLQ, no retries
+
+```bash
+curl.exe -X POST https://webhook-backend-2tdx.onrender.com/webhooks/generic \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: permanent-001" \
+  -H "X-Event-Type: payment.test" \
+  -d '{"user_id":"555","simulate_failure":"permanent"}'
+```
+
+**Backend log:**
+
+```
+Permanent error for receipt_id=...: Simulated permanent failure
+Moved to DLQ: receipt_id=... category=permanent
+```
+
+**Dashboard:** DEAD-LETTERED increments immediately — no retry loop.
+
+### WebSocket live pipeline feed
+
+The dashboard's "Live pipeline" panel connects via WebSocket to `wss://webhook-backend-2tdx.onrender.com/ws/pipeline?token=<WS_PUBLIC_TOKEN>`. Every pipeline event (RECEIVED, QUEUED, PROCESSING, SUCCESS, RETRYING, DEAD_LETTERED) is published to Redis pub/sub by the ingestion service and worker, then relayed to every connected browser in real time.
+
+**Verified by:**
+
+- Backend log: `WS auth check: incoming_len=43 expected_len=43 match=True`
+- Backend log: `WebSocket /ws/pipeline?token=... [accepted]`, `connection open`
+- Browser DevTools Network tab: WebSocket row shows `101 Switching Protocols`
+- Dashboard "Live pipeline" panel updates event counts within 1–2s of each webhook
+
+---
+
+## Two Environments, Two Classes of Bugs
+
+The two bug sets above are not duplicates of each other — they are different failure modes.
+
+|                    | Local (Bugs 1–3)                  | Production (Bugs 4–10)                                       |
+| ------------------ | --------------------------------- | ------------------------------------------------------------ |
+| **Environment**    | Docker Compose, localhost         | Render, HTTPS, real browser                                  |
+| **Caught by**      | Unit + integration tests          | Sending real traffic to a live deployment                    |
+| **Bug type**       | Concurrency and correctness       | Integration and configuration                                |
+| **Examples**       | TOCTOU race, event-loop collision | Env var names, missing Settings fields, unregistered routers |
+| **Detection**      | Deliberate test coverage          | Reading tracebacks, checking logs, live debugging            |
+| **Fix complexity** | 3–30 lines each                   | 1–5 lines each                                               |
+
+Neither set is more important than the other. The local bugs are what you'd find with good test discipline. The production bugs are what you'd find only by deploying. **A system that has been through both is genuinely more trustworthy than one that has only been tested in one environment.**
+
+This is documented because it is the honest answer to "how do you know it works?" — it works because it was deployed, broken, fixed, and re-deployed until the evidence said so.
 
 ---
 
