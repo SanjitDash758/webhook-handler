@@ -3,14 +3,13 @@ FastAPI application entry point.
 """
 from app.core.metrics_bootstrap import setup_multiprocess_dir
 setup_multiprocess_dir()
-
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from fastapi import FastAPI, Request
 from sqlalchemy import text
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.core.exceptions import AuthenticationError
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.routers.admin import router as admin_router
