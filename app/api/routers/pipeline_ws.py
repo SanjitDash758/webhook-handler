@@ -2,9 +2,6 @@ import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.utils.redis_client import get_redis
 from app.core.config import settings
-from app.core.logging import get_logger
-
-logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -14,13 +11,6 @@ PIPELINE_CHANNEL = "pipeline:events"
 @router.websocket("/ws/pipeline")
 async def pipeline_events(websocket: WebSocket, token: str = Query(...)):
     expected = settings.WS_PUBLIC_TOKEN
-    logger.info(
-        f"WS auth check: incoming_len={len(token)} "
-        f"expected_len={len(expected)} "
-        f"match={token == expected} "
-        f"incoming_repr={repr(token)} "
-        f"expected_repr={repr(expected)}"
-    )
 
     if token != expected:
         await websocket.close(code=4401)
