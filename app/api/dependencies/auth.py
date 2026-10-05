@@ -50,5 +50,5 @@ def require_dashboard_access(authorization: str = Header(...)) -> None:
     # Constant-time comparison — a plain `==` leaks timing information
     # about how many leading characters matched, which is a real (if minor)
     # side-channel for a secret this cheap to protect properly.
-    if not secrets.compare_digest(token, settings.DASHBOARD_API_TOKEN):
+    if not secrets.compare_digest(token, settings.ADMIN_API_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid dashboard token")
