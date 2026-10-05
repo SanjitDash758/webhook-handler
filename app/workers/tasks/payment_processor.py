@@ -21,7 +21,6 @@ Currently: a stub that simulates success/failure to exercise the
 retry-vs-DLQ paths. Replace the `process()` body with real logic.
 """
 
-import random
 from app.core.exceptions import (
     TransientProcessingError,
     PermanentProcessingError,
@@ -31,13 +30,6 @@ from app.models.db import WebhookReceipt
 
 
 logger = get_logger(__name__)
-
-
-# ============================================
-# SIMULATION KNOBS (delete when real logic lands)
-# ============================================
-SIMULATED_TRANSIENT_FAILURE_RATE = 1.0  
-SIMULATED_PERMANENT_FAILURE_RATE = 0.02   
 
 
 class PaymentProcessor:
@@ -53,29 +45,37 @@ class PaymentProcessor:
             f"event_type={receipt.event_type}"
         )
 
-        # ---- STUB: simulate transient/permanent failures ----
-        # This exists so we can exercise the retry and DLQ paths
-        # without real business logic. Delete when implementing.
-        roll = random.random()
-        if roll < SIMULATED_TRANSIENT_FAILURE_RATE:
+        # ---- TEST HOOK: explicit failure simulation ----
+        # Payload can opt-in to a failure path:
+        #   {"simulate_failure": "transient"} → retry / DLQ (transient)
+        #   {"simulate_failure": "permanent"} → direct DLQ (permanent)
+        #
+        # This replaces the previous random-roll simulation
+        # (SIMULATED_TRANSIENT_FAILURE_RATE = 1.0), which caused every
+        # webhook to fail in production.
+        #
+        # Safe to leave in: real payloads never include this field.
+        # Remove the block when real business logic lands.
+        simulate = None
+        if isinstance(receipt.payload, dict):
+            simulate = receipt.payload.get("simulate_failure")
+
+        if simulate == "transient":
             raise TransientProcessingError(
                 "Simulated transient failure (network timeout)"
             )
-        if roll < SIMULATED_TRANSIENT_FAILURE_RATE + SIMULATED_PERMANENT_FAILURE_RATE:
+        if simulate == "permanent":
             raise PermanentProcessingError(
                 "Simulated permanent failure (insufficient funds)"
             )
-        # ---- END STUB ----
+        # ---- END TEST HOOK ----
 
-        # ---- HERE, THE REAL LOGIC GOES HERE ----
-        # This is where we'd dispatch to per-provider handlers, e.g.:
+        # ---- REAL LOGIC GOES HERE ----
+        # When real business logic lands, dispatch per provider:
         #
         # if receipt.provider == ProviderType.STRIPE:
-        #     result = await self._handle_stripe(receipt)
-        # else:
-        #     result = await self._handle_generic(receipt)
-        #
-        # return result
+        #     return await self._handle_stripe(receipt)
+        # return await self._handle_generic(receipt)
         #
         # For now, return a fixed shape.
 
@@ -88,43 +88,3 @@ class PaymentProcessor:
 
         logger.info(f"Processed receipt: id={receipt.id} result={result}")
         return result
-
-    # ============================================
-    # PATTERN REFERENCE (unused for now)
-    # ============================================
-    #
-    # When we implement per-provider handling, we'd follow this pattern:
-    #
-    # async def _handle_stripe(self, receipt) -> dict:
-    #     payload = receipt.payload
-    #     event_type = receipt.event_type
-    #     data = payload.get("data", {}).get("object", {})
-    #
-    #     if event_type == "payment_intent.succeeded":
-    #         return await self._credit_user(data)
-    #     if event_type == "charge.refunded":
-    #         return await self._debit_user(data)
-    #
-    #     # Unhandled event types: not an error. Return a no-op snapshot.
-    #     return {"status": "ignored", "event_type": event_type}
-    #
-    # async def _credit_user(self, data: dict) -> dict:
-    #     user_id = (data.get("metadata") or {}).get("user_id")
-    #     if not user_id:
-    #         # Missing metadata = bad data = permanent.
-    #         raise PermanentProcessingError("Missing user_id in metadata")
-    #
-    #     amount_cents = data.get("amount")
-    #     if not isinstance(amount_cents, int) or amount_cents <= 0:
-    #         raise PermanentProcessingError(f"Invalid amount: {amount_cents!r}")
-    #
-    #     try:
-    #         await self._ledger.credit(user_id, amount_cents)
-    #     except LedgerUnavailableError as exc:
-    #         # Downstream unavailable = transient.
-    #         raise TransientProcessingError(str(exc)) from exc
-    #     except LedgerRejectedError as exc:
-    #         # Ledger refused (e.g., account frozen) = permanent.
-    #         raise PermanentProcessingError(str(exc)) from exc
-    #
-    #     return {"status": "credited", "user_id": user_id, "amount": amount_cents}
