@@ -2,7 +2,6 @@ import uuid
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.exc import IntegrityError
-
 from app.services.webhook_service import WebhookIngestionService, IngestionResult
 from app.models.db.enums import ProviderType, WebhookStatus
 from app.core.exceptions import DuplicateEventConflict

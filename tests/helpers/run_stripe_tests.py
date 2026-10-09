@@ -1,4 +1,3 @@
-"""Run all three Stripe signature tests in sequence."""
 import subprocess
 import sys
 from pathlib import Path

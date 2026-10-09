@@ -32,7 +32,7 @@ export interface DLQStats {
 }
 
 export interface MetricsSummary {
-  generated_at: string; // ISO 8601 — Pydantic's datetime serializes to a string over JSON, not a Date
+  generated_at: string; 
   total_received: number;
   total_success: number;
   total_dead_lettered: number;

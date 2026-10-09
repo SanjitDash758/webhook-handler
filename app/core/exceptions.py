@@ -2,12 +2,6 @@
 # BASE EXCEPTION
 # ============================================
 class WebhookProcessorError(Exception):
-    """
-    
-    Why a common base? So you can catch-all-without-catching-everything:
-        except WebhookProcessorError as e:
-            # Catches our errors, but lets KeyboardInterrupt, SystemExit through
-    """
     pass
 
 

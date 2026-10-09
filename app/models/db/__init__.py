@@ -8,7 +8,6 @@ from app.models.db.enums import (
     WebhookStatus,
     ErrorCategory,
 )
-
 from app.models.db.webhook_receipt import WebhookReceipt
 from app.models.db.dead_letter_queue import DeadLetterQueue
 

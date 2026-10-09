@@ -1,6 +1,3 @@
-"""
-FastAPI application entry point.
-"""
 from app.core.metrics_bootstrap import setup_multiprocess_dir
 setup_multiprocess_dir()
 import os

@@ -1,14 +1,3 @@
-"""
-Publishes pipeline stage-transition events to Redis Pub/Sub, consumed by
-the WebSocket endpoint (/ws/pipeline) that feeds the dashboard's animated
-diagram.
-
-Fire-and-forget by design: a publish failure must never break actual
-webhook processing. This is a visualization aid, not part of the
-system's correctness guarantees — unlike IdempotencyService, whose
-failures DO matter to correctness.
-"""
-
 import json
 import time
 from typing import Optional
@@ -23,13 +12,6 @@ PIPELINE_CHANNEL = "pipeline:events"
 
 
 class PipelinePublisher:
-    """
-    Async publisher for pipeline visualization events.
-
-    Mirrors IdempotencyService's client pattern exactly: an injectable
-    or lazily-created redis.asyncio.Redis instance from settings.REDIS_URL.
-    """
-
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self._redis = redis_client
 

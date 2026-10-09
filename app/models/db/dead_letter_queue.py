@@ -14,7 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-
 from app.core.database import Base
 from app.models.db.enums import (
     provider_type_enum,

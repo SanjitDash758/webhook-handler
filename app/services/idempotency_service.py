@@ -1,13 +1,3 @@
-"""
-Redis-backed idempotency fast path.
-
-Why JSON instead of a bare receipt_id?
-- want to return the SAME response to a duplicate as we did originally.
-- "Accepted, processing" for a fresh event.
-- "Success + response_snapshot" for a completed event.
-- This lets us serve duplicates without touching Postgres.
-"""
-
 import json
 from typing import Any, Optional
 import redis.asyncio as redis
@@ -29,7 +19,7 @@ class IdempotencyService:
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self._redis = redis_client
 
-       # ============================================
+    # ============================================
     # CLIENT
     # ============================================
     def _client(self) -> redis.Redis:

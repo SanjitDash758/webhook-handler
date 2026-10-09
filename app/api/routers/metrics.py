@@ -1,5 +1,3 @@
-# app/api/routers/metrics.py
-
 import json
 from fastapi import APIRouter, Depends
 

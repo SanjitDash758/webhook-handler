@@ -1,20 +1,3 @@
-"""
-Repository for the dead_letter_queue table.
-
-This is the ONLY module that should query or mutate
-the dead_letter_queue table.
-
-Characteristics:
-- Write-once: entries are inserted when a receipt permanently fails.
-- Ops-facing: read-heavy, low volume, moderate filtering.
-- Immutable except for: resolved, resolved_at, resolution_note, replayed_count.
-
-Conventions match WebhookReceiptRepository:
-- No HTTP, no Redis, no Celery knowledge.
-- No business rules (e.g., "should we replay?"). Just CRUD.
-- Session is injected; this class does not own transactions.
-"""
-
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID

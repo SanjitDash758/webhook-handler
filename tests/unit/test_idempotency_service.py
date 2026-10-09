@@ -2,7 +2,6 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from redis.exceptions import RedisError
-
 from app.services.idempotency_service import IdempotencyService
 from app.models.db.enums import ProviderType
 

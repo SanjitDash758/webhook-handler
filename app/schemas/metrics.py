@@ -7,21 +7,20 @@ class ProviderBreakdown(BaseModel):
     received: int
     success: int
     dead_lettered: int
-    unverified_count: int  # only ever nonzero for 'generic'
+    unverified_count: int 
 
 
 class LatencyStats(BaseModel):
     p50_ms: float
     p95_ms: float
     p99_ms: float
-    sample_size: int  # how many completed receipts this is computed over — 0 means "no data yet"
-
+    sample_size: int 
 
 class RetrySweepStats(BaseModel):
     total_celery_retries: int
     total_sweep_reenqueues: int
-    currently_pending: int       # rows sitting in 'pending', not yet picked up
-    currently_processing: int    # rows actively being worked
+    currently_pending: int       
+    currently_processing: int 
 
 
 class RateLimitStats(BaseModel):
@@ -32,8 +31,7 @@ class RateLimitStats(BaseModel):
 class DLQStats(BaseModel):
     total_unresolved: int
     total_resolved: int
-    oldest_unresolved_age_seconds: int | None  # None if DLQ is empty
-
+    oldest_unresolved_age_seconds: int | None 
 
 class MetricsSummary(BaseModel):
     generated_at: datetime

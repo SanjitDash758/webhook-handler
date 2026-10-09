@@ -2,11 +2,9 @@ import asyncio
 import sys
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 from celery.exceptions import Retry
 from sqlalchemy.exc import DBAPIError, OperationalError
-
 from app.core.exceptions import (
     PermanentProcessingError,
     TransientProcessingError,

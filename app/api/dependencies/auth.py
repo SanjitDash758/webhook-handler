@@ -1,20 +1,3 @@
-"""
-Authentication dependencies for protected endpoints.
-
-Only admin endpoints require authentication. Webhook endpoints
-must remain public — providers can't send an API key.
-
-Design:
-- Header: X-API-Key
-- Value: matches settings.ADMIN_API_KEY
-- On mismatch: raise AuthenticationError (translated to 401 by the API layer)
-
-Timing safety:
-- Comparison uses hmac.compare_digest (constant time).
-- Using `==` would leak information about the correct key through
-  response timing — an attacker could guess the key one byte at a time.
-"""
-
 import hmac
 import secrets
 from fastapi import Header, HTTPException
@@ -28,7 +11,7 @@ async def require_admin_api_key(
     x_api_key: str = Header(..., alias="X-API-Key"),
 ) -> None:
     """
-    FastAPI dependency. Verifies the X-API-Key header.
+    Verifies the X-API-Key header.
     """
     if not settings.ADMIN_API_KEY:
         # Defensive: config validation should prevent this, but if
@@ -45,7 +28,7 @@ async def require_dashboard_access(
     authorization: str = Header(..., alias="Authorization"),
 ) -> None:
     """
-    FastAPI dependency for dashboard endpoints.
+    Dependency for dashboard endpoints.
     Expects: Authorization: Bearer <token>
     """
     if not authorization.startswith("Bearer "):

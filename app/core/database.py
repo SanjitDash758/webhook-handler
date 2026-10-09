@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import declarative_base
 from typing import AsyncGenerator
-
 from app.core.config import settings
 
 
@@ -44,13 +43,6 @@ Base = declarative_base()
 # FASTAPI DEPENDENCY — inject session into endpoints
 # ============================================
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Yield a database session for the duration of a request.
-    
-    - Commits on success
-    - Rolls back on exception
-    - Always closes the session (even on error)
-    """
     async with AsyncSessionLocal() as session:
         try:
             yield session

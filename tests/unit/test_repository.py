@@ -5,13 +5,12 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-
 from app.core.database import Base
 from app.models.db import WebhookReceipt, WebhookStatus
 from app.models.db.enums import ErrorCategory, ProviderType
 from app.repositories.webhook_receipt_repo import WebhookReceiptRepository
 
-# Use SQLite in-memory for fast unit testing
+# Used SQLite in-memory for fast unit testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 

@@ -1,11 +1,3 @@
-"""
-Repository for the webhook_receipts table.
-
-This is the ONLY module that should query or mutate
-the webhook_receipts table. All other code goes through here.
-
-"""
-
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
@@ -42,7 +34,7 @@ class WebhookReceiptRepository:
             status=WebhookStatus.PENDING,
         )
         self._session.add(receipt)
-        await self._session.flush()   # assigns id, raises on constraint violation
+        await self._session.flush()
         return receipt
 
     # ============================================
@@ -164,30 +156,6 @@ class WebhookReceiptRepository:
         older_than_seconds: int,
         limit: int = 100,
     ) -> list[WebhookReceipt]:
-        """
-        Find receipts stuck in 'pending' that should have been processed.
-
-        A receipt is "stuck" if:
-        - status is 'pending' (never transitioned to processing)
-        - created_at is older than `older_than_seconds`
-
-        This is called by the reconciliation sweep. It re-enqueues
-        these receipts so they get another chance to be processed.
-
-        Uses the partial index ix_webhook_receipts_sweep — fast even
-        when the table has millions of terminal rows.
-
-        Args:
-            older_than_seconds: Minimum age to consider a receipt stuck.
-                Should be larger than the expected processing time
-                (default: 5 minutes).
-            limit: Maximum receipts to return in one sweep. Caps the
-                amount of work done in a single run, so a large backlog
-                is drained gradually instead of overwhelming the broker.
-
-        Returns:
-            A list of WebhookReceipt objects. Empty if none are stuck.
-        """
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=older_than_seconds)
 
         result = await self._session.execute(

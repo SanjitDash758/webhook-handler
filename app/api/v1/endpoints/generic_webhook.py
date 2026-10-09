@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 import json
 from typing import Any
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-
 from app.core.exceptions import DuplicateEventConflict
 from app.core.logging import get_logger
 from app.core.metrics import record_webhook_duplicate, record_webhook_received

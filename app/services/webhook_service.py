@@ -1,20 +1,3 @@
-"""
-Webhook ingestion service.
-
-Coordinates: Redis idempotency → Postgres persistence → Celery enqueue.
-
-This is THE entry point for all webhook ingestion.
-Routers must call this; they must not orchestrate themselves.
-
-Responsibility boundary:
-- Knows: idempotency semantics, DLQ flow, receipt lifecycle
-- Doesn't know: HTTP, signatures, Redis/DB clients, Celery specifics
-
-Dependencies (injected):
-- UnitOfWork (owns session + repositories)
-- IdempotencyService (Redis fast path)
-"""
-
 from dataclasses import dataclass
 from typing import Any, Optional
 from uuid import UUID
@@ -49,8 +32,8 @@ class IngestionResult:
     def status_code(self) -> int:
         """HTTP status code to return."""
         if self.is_new:
-            return 202   # Accepted — processing in background
-        return 200       # OK — duplicate, cached response returned
+            return 202   
+        return 200      
 
 
 # ============================================
@@ -61,11 +44,11 @@ class WebhookIngestionService:
         self,
         uow: UnitOfWork,
         idempotency: Optional[IdempotencyService] = None,
-        pipeline: Optional[PipelinePublisher] = None,  # NEW
+        pipeline: Optional[PipelinePublisher] = None,  
     ):
         self._uow = uow
         self._idempotency = idempotency or IdempotencyService()
-        self._pipeline = pipeline or PipelinePublisher()  # NEW
+        self._pipeline = pipeline or PipelinePublisher()  
 
     # ============================================
     # MAIN ENTRY POINT

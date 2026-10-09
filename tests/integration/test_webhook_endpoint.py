@@ -6,7 +6,6 @@ import uuid
 import pytest
 from httpx import AsyncClient
 from unittest.mock import AsyncMock, PropertyMock, patch
-
 from app.core.exceptions import DuplicateEventConflict, SignatureVerificationError
 from app.models.db.enums import WebhookStatus
 from app.services.webhook_service import IngestionResult

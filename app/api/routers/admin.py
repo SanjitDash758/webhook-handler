@@ -1,13 +1,4 @@
 """
-Dead Letter Queue admin endpoints.
-
-Ops-facing. Actions on failed webhooks.
-
-Routes:
-    GET  /admin/dlq                     list unresolved entries
-    POST /admin/dlq/{dlq_id}/replay     re-enqueue a failed webhook
-    POST /admin/dlq/{dlq_id}/resolve    mark an entry resolved
-
 Security:
     All routes require an X-API-Key header matching settings.ADMIN_API_KEY.
     The key is compared with hmac.compare_digest (timing-safe).

@@ -35,21 +35,6 @@ def verify_stripe_signature(
     secret: str,
     tolerance_seconds: int = DEFAULT_TOLERANCE_SECONDS,
 ) -> dict[str, Any]:
-    """
-    Verify a Stripe webhook signature.
-
-    Args:
-        payload: Raw request body as bytes (from request.body()).
-        sig_header: Value of the Stripe-Signature header.
-        secret: Webhook signing secret (whsec_...).
-        tolerance_seconds: Max age of the timestamp.
-
-    Returns:
-        Parsed JSON payload (dict).
-
-    Raises:
-        SignatureVerificationError: if any check fails.
-    """
     if not sig_header:
         raise SignatureVerificationError("Missing Stripe-Signature header")
 
@@ -86,12 +71,6 @@ def verify_stripe_signature(
 # ============================================
 
 def _parse_signature_header(header: str) -> tuple[int, list[str]]:
-    """
-    Parse 'Stripe-Signature' into (timestamp, [signatures]).
-
-    Format: t=1695820800,v1=abc...,v1=def...,v0=...
-    Multiple v1 entries are allowed (key rotation).
-    """
     timestamp: int | None = None
     signatures: list[str] = []
 
@@ -122,13 +101,6 @@ def _parse_signature_header(header: str) -> tuple[int, list[str]]:
 
 
 def _check_timestamp(timestamp: int, tolerance_seconds: int) -> None:
-    """
-    Reject timestamps too far from now (replay protection).
-
-    Checks both directions:
-    - Too old  → probably a replay
-    - Too far in the future → clock skew or forged
-    """
     now = int(time.time())
     delta = abs(now - timestamp)
 
@@ -145,11 +117,6 @@ def _compute_expected_signature(
     payload: bytes,
     secret: str,
 ) -> str:
-    """
-    HMAC-SHA256 over "{timestamp}.{raw_body}".
-
-    The exact string is defined by Stripe. Do not modify.
-    """
     signed_payload = f"{timestamp}.".encode("utf-8") + payload
 
     return hmac.new(
@@ -160,12 +127,6 @@ def _compute_expected_signature(
 
 
 def _any_signature_matches(candidates: list[str], expected: str) -> bool:
-    """
-    Return True if any candidate matches `expected` in constant time.
-
-    Why iterate? Stripe may send multiple v1 signatures during key rotation.
-    Why compare_digest? Timing-attack-safe comparison.
-    """
     match = False
     for candidate in candidates:
         if hmac.compare_digest(candidate, expected):

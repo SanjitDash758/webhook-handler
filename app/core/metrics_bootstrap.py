@@ -1,12 +1,3 @@
-"""
-Prometheus multiprocess initialization.
-
-Why: prometheus_client's multiprocess mode requires a shared
-directory (PROMETHEUS_MULTIPROC_DIR) where each worker writes
-its metrics. Without this, worker metrics are per-process and
-never appear in the /metrics endpoint.
-"""
-
 import os
 import tempfile
 from pathlib import Path

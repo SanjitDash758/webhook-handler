@@ -1,11 +1,6 @@
-"""
-Unit tests for WebhookIngestionService.
-"""
-
 from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
 import pytest
-
 from app.core.exceptions import DuplicateEventConflict
 from app.models.db.enums import ProviderType, WebhookStatus
 from app.services.webhook_service import WebhookIngestionService

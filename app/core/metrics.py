@@ -1,21 +1,9 @@
-"""
-Application metrics (Prometheus format).
-
-All metrics are defined here — one place to see everything the
-system exposes for observability.
-
-"""
-
 from prometheus_client import Counter, Gauge, Histogram
 
 
 # ============================================
 # INGESTION METRICS
 # ============================================
-# These increment at the API layer — the moment a webhook arrives.
-# Labels:
-#   provider — "stripe" | "generic"
-#   event_type — the webhook's event type (bounded cardinality)
 
 webhook_received_total = Counter(
     "webhook_received_total",
@@ -39,10 +27,6 @@ webhook_rate_limited_total = Counter(
 # ============================================
 # PROCESSING METRICS
 # ============================================
-# These increment inside the Celery task — the moment processing runs.
-# Labels:
-#   provider — "stripe" | "generic"
-#   event_type — the webhook's event type
 
 webhook_processed_success_total = Counter(
     "webhook_processed_success_total",

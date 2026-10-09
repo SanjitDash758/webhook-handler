@@ -1,16 +1,3 @@
-"""
-Unit of Work pattern.
-
-Groups repository operations into a single atomic transaction.
-
-Why this exists:
-- A single business operation may write to multiple tables
-  (e.g., mark a receipt dead_lettered AND insert a DLQ entry).
-- Those writes must succeed or fail TOGETHER.
-- Sharing one session = one transaction = atomicity.
-
-"""
-
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,15 +54,6 @@ class UnitOfWork:
     @classmethod
     @asynccontextmanager
     async def session_scope(cls) -> AsyncIterator["UnitOfWork"]:
-        """
-        Async context manager for non-FastAPI callers (Celery tasks, CLI scripts).
-
-        Guarantees:
-        - A fresh session per scope.
-        - Commit on successful exit.
-        - Rollback on exception.
-        - Session always closed.
-        """
         session = AsyncSessionLocal()
         uow = cls(session)
         try:

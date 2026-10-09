@@ -1,29 +1,3 @@
-"""
-Generic webhook ingestion endpoint.
-
-For callers that cannot sign their requests. Lower trust tier.
-
-Contract:
-    POST /webhooks/generic
-    Headers:
-        Idempotency-Key: <opaque, unique per logical event>   (required)
-        X-Event-Type:    <dot.notation.event.type>            (required)
-        Content-Type:    application/json
-    Body:
-        any JSON object
-
-Response codes:
-    202 Accepted             — new webhook, queued
-    200 OK                   — duplicate; cached response returned
-    400 Bad Request          — missing/invalid headers, malformed JSON
-    409 Conflict             — idempotency key reused for a different event
-    429 Too Many Requests    — rate limited (middleware)
-    500 Internal Server Error — unexpected
-
-Because there is no signature, receipts created here are marked
-verified=False. Ops can query for them and treat them as lower-trust.
-"""
-
 from __future__ import annotations
 import json
 from typing import Any
@@ -67,16 +41,6 @@ MAX_EVENT_TYPE_LENGTH = 100
 
 
 async def _process_inline(receipt_id: str) -> None:
-    """
-    Process a webhook inline (no Celery). Used when CELERY_ENABLED is false.
-
-    Wraps the same `_process` function the Celery task uses, so the state
-    machine (pending → processing → success/dead_lettered) and all pipeline
-    events are identical. The only difference: no retries, no backoff.
-
-    Failures that would normally move to the DLQ still do — the code path is
-    the same, only the retry loop is bypassed.
-    """
     from app.workers.tasks.process_webhook import _process
     from celery import Task
 
@@ -89,8 +53,6 @@ async def _process_inline(receipt_id: str) -> None:
         await _process(receipt_id=receipt_id, task=_InlineTask())
         logger.info(f"Inline processing complete: receipt_id={receipt_id}")
     except Exception as exc:
-        # Inline mode has no retry loop; log and let the DLQ logic inside
-        # _process handle the terminal state.
         logger.error(
             f"Inline processing failed: receipt_id={receipt_id} exc={exc!r}",
             exc_info=True,
@@ -173,16 +135,9 @@ async def receive_generic_webhook(
         raise HTTPException(status_code=409, detail=str(exc))
 
     # ---- 4. Dispatch to worker ----
-    #
-    # PRODUCTION MODE — Celery worker picks up the task.
-    # Requires a Background Worker service on Render ($7/month).
-    # Commented out for the free-tier demo.
-    #
     # from app.workers.tasks.process_webhook import process_webhook_task
     # process_webhook_task.delay(str(result.receipt_id))
-    #
-    # FREE-TIER DEMO MODE — process inline after responding.
-    # BackgroundTasks keeps the 202 fast; the work runs after the response.
+    
     if result.is_new and not CELERY_ENABLED:
         from starlette.background import BackgroundTask
         # Schedule the inline processing so the client still gets a fast 202.

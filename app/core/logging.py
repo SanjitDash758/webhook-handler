@@ -29,7 +29,6 @@ def setup_logging(level: Optional[str] = None) -> None:
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("celery").setLevel(logging.INFO)
     logging.getLogger("kombu").setLevel(logging.WARNING)
-    
     logger = logging.getLogger("webhook-handler")
     logger.info(f"Logging configured at {log_level} level")
 

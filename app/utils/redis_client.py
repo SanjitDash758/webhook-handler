@@ -15,10 +15,6 @@ _client: Optional[redis.Redis] = None
 # LIFECYCLE
 # ============================================
 async def init_redis() -> redis.Redis:
-    """
-    Create the Redis client and verify connectivity.
-
-    """
     global _client
     if _client is not None:
         return _client
@@ -27,10 +23,10 @@ async def init_redis() -> redis.Redis:
 
     _client = redis.from_url(
         settings.REDIS_URL,
-        decode_responses=True,   # return str, not bytes
-        socket_timeout=5,        # bound every read
-        socket_connect_timeout=5,# bound connection attempts
-        max_connections=50,      # cap concurrent connections
+        decode_responses=True,   
+        socket_timeout=5,        
+        socket_connect_timeout=5,
+        max_connections=50,      
         retry_on_timeout=True,
         retry_on_error=[ConnectionError, TimeoutError],
         health_check_interval=30,
@@ -51,27 +47,12 @@ async def init_redis() -> redis.Redis:
 
 
 async def get_redis() -> redis.Redis:
-    """
-    Return the shared Redis client, creating it lazily if needed.
-
-    This is the function that user code calls. It NEVER raises for
-    a missing client — it initializes on demand.
-
-    If you want fail-fast at startup, call `init_redis()` explicitly
-    in your app's lifespan.
-    """
     if _client is None:
         await init_redis()
     return _client
 
 
 async def close_redis() -> None:
-    """
-    Close the Redis connection pool.
-
-    Idempotent — safe to call multiple times. After this call,
-    `get_redis()` will reinitialize on next use.
-    """
     global _client
     if _client is None:
         return

@@ -1,6 +1,5 @@
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.db.webhook_receipt import WebhookReceipt
 from app.models.db.enums import WebhookStatus
 from app.models.db.dead_letter_queue import DeadLetterQueue

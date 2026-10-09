@@ -2,7 +2,6 @@ import uuid
 import pytest
 from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
-
 from app.core.exceptions import DuplicateEventConflict, SignatureVerificationError
 from app.main import app
 from app.repositories.unit_of_work import get_uow
