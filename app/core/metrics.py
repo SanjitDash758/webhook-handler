@@ -22,6 +22,11 @@ webhook_rate_limited_total = Counter(
     "Total webhook requests rejected by rate limiting.",
     labelnames=("provider",),
 )
+ip_allowlist_rejections_total = Counter(
+    "ip_allowlist_rejections_total",
+    "Total requests rejected by the IP allowlist.",
+    labelnames=("path",),
+)
 
 
 # ============================================

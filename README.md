@@ -80,6 +80,8 @@ In one sentence: This system makes webhook handling safe, auditable, and recover
 - **Prometheus metrics.** `/metrics` endpoint exposes counters, gauges, and histograms across all processes (API, worker, beat) using multiprocess mode.
 - **Self-healing reconciliation.** A periodic sweep re-enqueues stuck webhooks. Lost tasks recover without human intervention.
 
+- **IP allowlisting.** Stripe webhook requests are filtered against Stripe's published IP ranges before signature verification. Defense-in-depth, not authentication — the HMAC signature is. Fail-closed: the app refuses to start if the allowlist is enabled but the file is missing or malformed. Includes an audited emergency override.
+
 ---
 
 ## Architecture
@@ -453,6 +455,12 @@ There is one admin identity (the operator). JWT is designed for multi-user auth 
 ### Why Prometheus multiprocess mode?
 
 Each container (API, worker, beat) runs in its own process, so `prometheus_client` metrics would be per-process — invisible in a central `/metrics` endpoint. Multiprocess mode uses a shared directory (`PROMETHEUS_MULTIPROC_DIR`) where each process writes its own `.db` file. The `/metrics` reader merges them via `MultiProcessCollector`. Result: one scrape sees the whole system.
+
+### Why IP allowlisting AND signature verification?
+
+They solve different problems. The signature proves Stripe sent the event — cryptographic authentication. The IP allowlist reduces attack surface — rejects scanners, casual abuse, and rejected probes cheaply (no HMAC computation). Neither is sufficient alone: IPs can theoretically be spoofed (though hard against reputable upstreams), and signatures don't prevent DoS. Together they cover both.
+
+The allowlist is configured via a versioned JSON file (`data/stripe_ips.json`), refreshed by a script that validates Stripe's published list. Fail-closed by default: a misconfigured allowlist is a startup error, not a silent bypass.
 
 ---
 

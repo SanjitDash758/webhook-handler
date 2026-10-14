@@ -4,9 +4,8 @@ Stripe webhook ingestion endpoint.
 Boundary layer: HTTP in → domain calls → HTTP out.
 No business logic; no side effects outside services.
 """
-
 from __future__ import annotations
-
+from app.api.dependencies.ip_allowlist import require_stripe_ip
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
@@ -31,6 +30,7 @@ router = APIRouter(prefix="/webhooks/stripe", tags=["webhooks"])
     "",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Receive a Stripe webhook",
+    dependencies=[Depends(require_stripe_ip)],
     responses={
         202: {"description": "Accepted for processing"},
         200: {"description": "Duplicate; cached response returned"},

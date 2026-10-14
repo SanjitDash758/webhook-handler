@@ -1,5 +1,8 @@
 from app.core.metrics_bootstrap import setup_multiprocess_dir
 setup_multiprocess_dir()
+from app.core.config import settings
+from app.core.logging import setup_logging, get_logger
+setup_logging("DEBUG" if settings.DEBUG else "INFO")
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -14,9 +17,7 @@ from app.api.routers.generic_webhooks import router as generic_router
 from app.api.routers.stripe_webhooks import router as stripe_router
 from app.api.routers.metrics import router as metrics_router
 from app.api.routers.pipeline_ws import router as pipeline_ws_router
-from app.core.config import settings
 from app.core.database import engine, Base
-from app.core.logging import get_logger, setup_logging
 from app.utils.redis_client import close_redis, init_redis
 import app.models.db.webhook_receipt
 
@@ -28,7 +29,6 @@ logger = get_logger(__name__)
 # ============================================
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    setup_logging("DEBUG" if settings.DEBUG else "INFO")
     logger.info(
         f"Starting {settings.APP_NAME} v{settings.APP_VERSION} "
         f"(env={settings.ENVIRONMENT})"

@@ -344,6 +344,35 @@ Each receipt carries a `sweep_attempts` counter. After `max_sweep_attempts` (def
 
 **Why it matters:** Celery tasks can be lost (worker crash, broker restart, message drop). Without the sweep, receipts would sit in `pending` forever. The sweep turns this failure mode from "requires manual intervention" into "self-heals in ≤5 minutes."
 
+## IP Allowlisting (Defense-in-Depth)
+
+Stripe webhook requests are filtered against Stripe's published IP ranges before signature verification.
+
+**Why "defense-in-depth" and not "authentication":**
+The HMAC signature proves Stripe created the request. IP filtering is a surface-reduction measure — it rejects scanners and scripted abuse cheaply, before we spend CPU on signature verification. It is not a substitute for authentication.
+
+**Design:**
+
+- **Data source:** `data/stripe_ips.json` — a versioned JSON file with the current list. Refreshed manually via `scripts/refresh_stripe_ips.py`, which validates the fetched data before writing.
+- **Scope:** Applies only to `/webhooks/stripe`. Other routes are unaffected.
+- **Peer IP, not headers:** Uses `request.client.host` (the TCP peer). `X-Forwarded-For` is spoofable and is not trusted.
+- **Fail-closed:** If enabled and the file is missing, empty, or invalid, the app refuses to start.
+- **Emergency override:** `STRIPE_IP_ALLOWLIST_OVERRIDE=true` bypasses the check with a CRITICAL log. It exists for incidents where legitimate traffic is being blocked by a stale list. It should trigger an alert.
+
+**Configuration:**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `STRIPE_IP_ALLOWLIST_ENABLED` | `false` | Master switch. Set `true` in production. |
+| `STRIPE_IP_ALLOWLIST_FILE` | `data/stripe_ips.json` | Path to the IP list. Can be mounted from a secret store in production. |
+| `STRIPE_IP_ALLOWLIST_OVERRIDE` | `false` | Emergency bypass. Logs CRITICAL when used. |
+
+**Observability:**
+
+- Every rejection logs at WARNING with `source_ip`, `path`, and `user_agent`.
+- A metric `ip_allowlist_rejections_total{path=...}` increments on each rejection.
+- Sustained spikes should trigger an alert in Prometheus.
+
 ## What This Architecture Is Not
 
 This system is production-ready for a small-to-medium deployment. It is **not** designed for:

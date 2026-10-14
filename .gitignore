@@ -50,4 +50,8 @@ dist/
 
 # Metrics temp files
 prometheus_multiproc/
-/tmp/prometheus_multiproc/
+/tmp/prometheus_multiproc/ 
+
+# Operational data — this is tracked intentionally
+# data/stripe_ips.json 
+

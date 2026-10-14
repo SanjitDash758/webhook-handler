@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 
 class Settings(BaseSettings):
     """
@@ -45,7 +46,27 @@ class Settings(BaseSettings):
     # STRIPE
     # ============================================
     STRIPE_WEBHOOK_SECRET: str
-    
+    # ============================================
+    # STRIPE IP ALLOWLIST
+    # ============================================
+    # Defense-in-depth: restrict Stripe webhook traffic to Stripe's
+    # published IP ranges. This is NOT authentication -- the HMAC
+    # signature is. The allowlist reduces attack surface (blocks
+    # scanners, casual abuse) but does not prove sender identity.
+    #
+    # Enabled by default in production, disabled in development.
+    STRIPE_IP_ALLOWLIST_ENABLED: bool = False
+
+    # Path to the JSON file containing the IP allowlist.
+    # Versioned at data/stripe_ips.json; refreshed via
+    # scripts/refresh_stripe_ips.py.
+    STRIPE_IP_ALLOWLIST_FILE: str = "data/stripe_ips.json"
+
+    # Emergency escape hatch. If the allowlist is misconfigured and
+    # legitimate traffic is being rejected, set this to true to
+    # bypass the check at startup. Logs CRITICAL when used -- should
+    # trigger an alert in production monitoring.
+    STRIPE_IP_ALLOWLIST_OVERRIDE: bool = False
     # ============================================
     # ADMIN API KEY
     # ============================================

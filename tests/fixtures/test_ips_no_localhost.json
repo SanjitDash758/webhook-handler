@@ -1,0 +1,6 @@
+{
+  "_comment": "Test allowlist with no localhost. Used to prove 403 rejection.",
+  "prefixes": [
+    "3.18.12.63/32"
+  ]
+}
